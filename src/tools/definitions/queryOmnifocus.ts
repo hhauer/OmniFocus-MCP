@@ -141,7 +141,13 @@ function formatTasks(tasks: any[]): string {
     
     // Project context
     if (task.projectName) {
-      parts.push(`(${task.projectName})`);
+      const projectInfo = task.projectId
+        ? `${task.projectName} [${task.projectId}]`
+        : task.projectName;
+      parts.push(`(${projectInfo})`);
+    } else if (task.projectId) {
+      // Has projectId but no name (shouldn't happen, but handle gracefully)
+      parts.push(`([${task.projectId}])`);
     }
     
     // Dates
