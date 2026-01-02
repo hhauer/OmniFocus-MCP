@@ -293,6 +293,7 @@ function generateFieldMapping(entity: string, fields?: string[]): string {
           deferDate: formatDate(item.deferDate),
           tagNames: item.tags ? item.tags.map(t => t.name) : [],
           projectName: item.containingProject ? item.containingProject.name : (item.inInbox ? "Inbox" : null),
+          projectId: item.containingProject ? item.containingProject.id.primaryKey : null,
           estimatedMinutes: item.estimatedMinutes || null,
           note: item.note || ""
         };

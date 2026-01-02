@@ -35,12 +35,12 @@ export async function handler(args: z.infer<typeof schema>, extra: RequestHandle
   }
 }
 
-// Function to format date in compact format (M/D)
+// Function to format date in compact format (M/D/YYYY)
 function formatCompactDate(isoDate: string | null): string {
   if (!isoDate) return '';
 
   const date = new Date(isoDate);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
 }
 
 // Function to format the database in the compact report format
@@ -55,9 +55,10 @@ function formatCompactReport(database: any, options: { hideCompleted: boolean, h
 
   // Add legend
   output += `FORMAT LEGEND:
-F: Folder | P: Project | •: Task | 🚩: Flagged
-Dates: [M/D] | Duration: (30m) or (2h) | Tags: <tag1,tag2>
-Status: #next #avail #block #due #over #compl #drop\n\n`;
+F: Folder | P: Project | •: Task | 🚩: Flagged | 📝: Has Note
+Dates: [M/D/YYYY] | Duration: (30m) or (2h) | Tags: <tag1,tag2>
+Status: #next #avail #block #due #over #compl #drop
+Note: Use queryOmnifocus tool with 'note' field to retrieve full note content\n\n`;
 
   // Map of folder IDs to folder objects for quick lookup
   const folderMap = new Map();
@@ -65,9 +66,7 @@ Status: #next #avail #block #due #over #compl #drop\n\n`;
     folderMap.set(folder.id, folder);
   });
 
-  // Get all tag names to compute minimum unique prefixes
-  const allTagNames = Object.values(database.tags).map((tag: any) => tag.name);
-  const tagPrefixMap = computeMinimumUniquePrefixes(allTagNames);
+  // Tags will be displayed with full names for clarity
 
   // Function to get folder hierarchy path
   function getFolderPath(folderId: string): string[] {
@@ -142,7 +141,10 @@ Status: #next #avail #block #due #over #compl #drop\n\n`;
     // Add flag if present
     const flaggedSymbol = project.flagged ? ' 🚩' : '';
 
-    let projectOutput = `${indent}P: ${project.name}${flaggedSymbol}${statusInfo}\n`;
+    // Add note indicator if project has a note
+    const noteIndicator = (project.note && project.note.trim().length > 0) ? ' 📝' : '';
+
+    let projectOutput = `${indent}P: ${project.name}${flaggedSymbol}${statusInfo}${noteIndicator}\n`;
 
     // Process tasks in this project
     const projectTasks = database.tasks.filter((task: any) =>
@@ -196,12 +198,8 @@ Status: #next #avail #block #due #over #compl #drop\n\n`;
     // Format tags
     let tagsStr = '';
     if (task.tagNames && task.tagNames.length > 0) {
-      // Use minimum unique prefixes for tag names
-      const abbreviatedTags = task.tagNames.map((tag: string) => {
-        return tagPrefixMap.get(tag) || tag;
-      });
-
-      tagsStr = ` <${abbreviatedTags.join(',')}>`;
+      // Use full tag names for clarity
+      tagsStr = ` <${task.tagNames.join(',')}>`;
     }
 
     // Format status
@@ -230,7 +228,10 @@ Status: #next #avail #block #due #over #compl #drop\n\n`;
         break;
     }
 
-    let taskOutput = `${indent}• ${flagSymbol}${task.name}${dateInfo}${durationStr}${tagsStr}${statusStr}\n`;
+    // Add note indicator if task has a note
+    const noteIndicator = (task.note && task.note.trim().length > 0) ? ' 📝' : '';
+
+    let taskOutput = `${indent}• ${flagSymbol}${task.name}${dateInfo}${durationStr}${tagsStr}${statusStr}${noteIndicator}\n`;
 
     // Process subtasks
     if (task.childIds && task.childIds.length > 0) {
@@ -269,43 +270,4 @@ Status: #next #avail #block #due #over #compl #drop\n\n`;
   }
 
   return output;
-}
-
-// Compute minimum unique prefixes for all tags (minimum 3 characters)
-function computeMinimumUniquePrefixes(tagNames: string[]): Map<string, string> {
-  const prefixMap = new Map<string, string>();
-
-  // For each tag name
-  for (const tagName of tagNames) {
-    // Start with minimum length of 3
-    let prefixLength = 3;
-    let isUnique = false;
-
-    // Keep increasing prefix length until we find a unique prefix
-    while (!isUnique && prefixLength <= tagName.length) {
-      const prefix = tagName.substring(0, prefixLength);
-
-      // Check if this prefix uniquely identifies the tag
-      isUnique = tagNames.every(otherTag => {
-        // If it's the same tag, skip comparison
-        if (otherTag === tagName) return true;
-
-        // If the other tag starts with the same prefix, it's not unique
-        return !otherTag.startsWith(prefix);
-      });
-
-      if (isUnique) {
-        prefixMap.set(tagName, prefix);
-      } else {
-        prefixLength++;
-      }
-    }
-
-    // If we couldn't find a unique prefix, use the full tag name
-    if (!isUnique) {
-      prefixMap.set(tagName, tagName);
-    }
-  }
-
-  return prefixMap;
 }
